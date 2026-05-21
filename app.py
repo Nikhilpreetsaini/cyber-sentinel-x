@@ -39,10 +39,6 @@ if str(SRC_DIR) not in sys.path:
 import os
 import io
 
-
-import os
-import io
-
 from src.log_parser import load_log
 from src.preprocessor import preprocess
 from src.threat_detector import detect_threats
