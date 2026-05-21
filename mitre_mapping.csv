@@ -1,0 +1,14 @@
+threat_type,tactic,technique,technique_id
+Brute Force,Credential Access,Brute Force,T1110
+Password Spraying,Credential Access,Password Spraying,T1110.003
+Port Scan,Discovery,Network Service Discovery,T1046
+Suspicious Login,Credential Access,Valid Accounts,T1078
+Admin Account Targeting,Credential Access,Valid Accounts,T1078
+Malware-like Activity,Execution,Malicious Process Execution,T1204
+Data Exfiltration,Exfiltration,Exfiltration Over C2 Channel,T1041
+Privilege Abuse,Privilege Escalation,Abuse Elevation Control Mechanism,T1078
+Suspicious Admin Activity,Privilege Escalation,Valid Accounts,T1078
+Unusual Login Time,Credential Access,Unusual Login Time,T1078
+Unknown IP Login,Credential Access,Valid Accounts,T1078
+Repeated Blocked Firewall Events,Defense Evasion,Impair Defenses,T1562
+Normal Activity,NA,NA,NA

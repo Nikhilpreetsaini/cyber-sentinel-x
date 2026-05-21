@@ -1,0 +1,8 @@
+{
+  "normal_activity_events": 100,
+  "brute_force_attempts": 50,
+  "password_spraying_users": 5,
+  "port_scan_ports": 20,
+  "malware_events": 30,
+  "data_exfiltration_events": 40
+}

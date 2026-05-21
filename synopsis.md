@@ -1,0 +1,5 @@
+# Project Synopsis
+
+Cyber Sentinel X is an AI‑powered SOC analyst and threat intelligence platform that ingests security logs, detects suspicious activities, assigns risk scores and generates incident reports. It combines heuristic rule‑based detection with simple anomaly scoring and user/entity behaviour analytics (UEBA) to identify common attack patterns such as brute force login attempts, password spraying, port scanning, malware‑like behaviour, data exfiltration and privilege abuse.
+
+The project demonstrates how a defensive cybersecurity tool can be built using Python and Streamlit to support an analyst workflow. It includes features such as MITRE ATT&CK mapping, threat intelligence lookup, case management, incident correlation and a rule‑based conversational agent. The system is designed for educational purposes and does not perform real‑time network scanning or exploitation.

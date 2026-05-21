@@ -1,0 +1,68 @@
+{
+  "Brute Force": [
+    "Block source IP",
+    "Reset affected user password",
+    "Enable multi-factor authentication",
+    "Review successful login after failures",
+    "Monitor admin accounts"
+  ],
+  "Password Spraying": [
+    "Block offending IP",
+    "Enforce password complexity",
+    "Enable account lockout policy",
+    "Educate users on credential hygiene"
+  ],
+  "Port Scan": [
+    "Block scanning IP",
+    "Review firewall rules",
+    "Monitor for subsequent exploitation attempts"
+  ],
+  "Suspicious Login": [
+    "Review login details",
+    "Confirm user identity",
+    "Reset account password",
+    "Enable MFA"
+  ],
+  "Malware-like Activity": [
+    "Quarantine affected host",
+    "Run antivirus and malware scans",
+    "Investigate processes and services",
+    "Patch vulnerable systems"
+  ],
+  "Data Exfiltration": [
+    "Disable suspicious session",
+    "Review outbound traffic logs",
+    "Check accessed files and databases",
+    "Notify data protection team"
+  ],
+  "Privilege Abuse": [
+    "Revoke elevated privileges",
+    "Reset compromised credentials",
+    "Audit privilege usage",
+    "Investigate insider threat"
+  ],
+  "Suspicious Admin Activity": [
+    "Investigate admin actions",
+    "Check for account compromise",
+    "Reset credentials",
+    "Limit admin privileges temporarily"
+  ],
+  "Unusual Login Time": [
+    "Contact user to confirm activity",
+    "Monitor subsequent logins",
+    "Enforce time-based access restrictions"
+  ],
+  "Unknown IP Login": [
+    "Verify user identity",
+    "Review geolocation and device info",
+    "Enable account monitoring"
+  ],
+  "Repeated Blocked Firewall Events": [
+    "Block offending IP",
+    "Investigate firewall rules",
+    "Monitor for persistence attempts"
+  ],
+  "Normal Activity": [
+    "No action required"
+  ]
+}

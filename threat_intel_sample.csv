@@ -1,0 +1,8 @@
+ip,reputation,category,confidence,action
+185.220.101.45,Malicious,Botnet Scanner,0.91,Block and monitor related traffic
+192.168.1.250,Malicious,Brute Force Source,0.95,Block and enforce MFA
+192.168.1.200,Suspicious,Password Sprayer,0.85,Block and review user accounts
+192.168.1.180,Suspicious,Port Scanner,0.80,Block and monitor network scans
+192.168.1.190,Malicious,Malware Host,0.88,Isolate and investigate host
+192.168.1.170,Suspicious,Data Exfiltration,0.82,Investigate data transfers
+10.0.0.5,Unknown,Unknown,0.50,Monitor closely
