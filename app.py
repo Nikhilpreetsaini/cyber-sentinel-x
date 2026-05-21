@@ -4,8 +4,16 @@ import numpy as np
 import plotly.express as px
 import re
 from datetime import datetime, timedelta
-
-st.set_page_config(page_title='Cyber Sentinel X', page_icon='🛡️', layout='wide')
+# Add project root and src directory to sys.path so Streamlit can import src modules
+from pathlib import Path
+import sys
+ROOT_DIR = Path(__file__).resolve().parent
+SRC_DIR = ROOT_DIR / "src"
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
+if str(SRC_DIR) not in sys.path:
+    sys.path.insert(0, str(SRC_DIR))
+.set_page_config(page_title='Cyber Sentinel X', page_icon='🛡️', layout='wide')
 
 st.markdown('''
 <style>
