@@ -20,6 +20,7 @@
 Clone the repository and install the dependencies:
 
 ```bash
+
 git clone https://github.com/your-username/cyber-sentinel-x.git
 cd cyber-sentinel-x
 pip install -r requirements.txt
