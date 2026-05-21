@@ -13,8 +13,8 @@ if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
-.set_page_config(page_title='Cyber Sentinel X', page_icon='🛡️', layout='wide')
 
+st.set_page_config(page_title='Cyber Sentinel X', page_icon='\U0001F6E1', layout='wide')
 st.markdown('''
 <style>
 .main {background-color:#0b1220;}
