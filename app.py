@@ -30,6 +30,10 @@ from pathlib import Path
 import sys
 ROOT_DIR = Path(__file__).resolve().parent
 if str(ROOT_DIR) not in sys.path:
+    SRC_DIR = ROOT_DIR / "src"
+if str(SRC_DIR) not in sys.path:
+    sys.path.insert(0, str(SRC_DIR))
+
     sys.path.insert(0, str(ROOT_DIR))
     
 import os
