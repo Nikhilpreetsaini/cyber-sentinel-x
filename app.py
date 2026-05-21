@@ -25,6 +25,17 @@ Key features include:
 
 import streamlit as st
 import pandas as pd
+# Add project root to Python path so Streamlit can import src modules
+from pathlib import Path
+import sys
+ROOT_DIR = Path(__file__).resolve().parent
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
+    
+import os
+import io
+
+
 import os
 import io
 
