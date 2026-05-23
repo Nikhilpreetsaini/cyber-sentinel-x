@@ -1,251 +1,306 @@
+"""
+Cyber Sentinel X Streamlit App
+=============================
+
+This Streamlit application provides a mini Security Operations Center (SOC)
+dashboard for analysing log data, detecting cyber threats, assigning risk
+scores, correlating incidents and generating reports. It demonstrates
+principles of user and entity behaviour analytics (UEBA), MITRE ATT&CK mapping,
+threat intelligence integration and agentic explanation. The app is intended
+for educational use and does not perform any real-world intrusion detection.
+
+Key features include:
+
+* Multi-source log upload and demo log generation
+* Threat detection (brute force, password spray, port scan, malware-like, data exfiltration, etc.)
+* Risk scoring and risk level classification
+* UEBA anomaly detection
+* Incident correlation with incident IDs
+* SOC dashboard summarising event and incident statistics
+* Incident investigation workflow with case management
+* AI security agent to explain incidents and answer questions
+* Threat intelligence lookup and MITRE ATT&CK mapping
+* Report generation and download
+"""
+
 import streamlit as st
 import pandas as pd
-import numpy as np
-import plotly.express as px
-import re
-from datetime import datetime, timedelta
-# Add project root and src directory to sys.path so Streamlit can import src modules
+import os
+import io
+# Add project root to sys.path so that the src package can be imported when the app
+# is executed by Streamlit or other environments. Without this, the 'src' package may
+# not be discoverable depending on how the app is launched (e.g. Streamlit Cloud).
 from pathlib import Path
 import sys
+
 ROOT_DIR = Path(__file__).resolve().parent
-SRC_DIR = ROOT_DIR / "src"
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
-if str(SRC_DIR) not in sys.path:
-    sys.path.insert(0, str(SRC_DIR))
 
-st.set_page_config(page_title='Cyber Sentinel X', page_icon='\U0001F6E1', layout='wide')
-st.markdown('''
-<style>
-.main {background-color:#0b1220;}
-.stApp {background:linear-gradient(135deg,#07111f,#101827); color:#e5e7eb;}
-.metric-card {padding:18px;border-radius:16px;background:#111827;border:1px solid #263244;box-shadow:0 8px 22px rgba(0,0,0,.25)}
-.badge {padding:4px 10px;border-radius:999px;font-weight:700;}
-.low {background:#064e3b;color:#a7f3d0}.medium{background:#78350f;color:#fde68a}.high{background:#7f1d1d;color:#fecaca}.critical{background:#881337;color:#fbcfe8}
-</style>
-''', unsafe_allow_html=True)
+from src.log_parser import load_log
+from src.preprocessor import preprocess
+from src.threat_detector import detect_threats
+from src.risk_engine import compute_risk
+from src.ueba_engine import analyse_ueba
+from src.incident_correlator import correlate_incidents
+from src.timeline_builder import build_timeline
+from src.ai_agent import explain_incident, answer_question
+from src.mitre_mapper import map_threat
+from src.threat_intel import lookup_ip
+from src.report_generator import incident_report, summary_report
+from src.case_manager import initialize_case, get_case, update_case, STATUSES
+from src.visualizer import (
+    threat_distribution,
+    risk_distribution,
+    timeline_chart,
+    risk_heatmap,
+    relationship_graph,
+)
+from src.ioc_extractor import extract_iocs
+from src.playbooks import get_playbook
 
-MITRE = {
-    'Brute Force': 'T1110 - Credential Access',
-    'Password Spraying': 'T1110.003 - Password Spraying',
-    'Port Scan': 'T1046 - Network Service Discovery',
-    'Suspicious Admin Activity': 'T1078 - Valid Accounts',
-    'Malware-like Activity': 'T1204 - User Execution',
-    'Data Exfiltration': 'T1041 - Exfiltration Over C2 Channel',
-    'Privilege Abuse': 'T1068 - Exploitation for Privilege Escalation',
-    'Unusual Login Time': 'T1078 - Valid Accounts',
-    'Unknown IP Login': 'T1078 - Valid Accounts',
-    'Normal Activity': 'N/A'
-}
 
-PLAYBOOKS = {
-    'Brute Force': 'Block source IP, reset affected account password, enforce MFA, review successful logins after failures.',
-    'Password Spraying': 'Apply account lockout policy, notify targeted users, monitor same IP across accounts.',
-    'Port Scan': 'Validate firewall exposure, block scanner if malicious, monitor for follow-up activity.',
-    'Suspicious Admin Activity': 'Verify admin activity, review privileged actions, reset admin password if suspicious.',
-    'Malware-like Activity': 'Isolate endpoint, collect process evidence, run malware scan, escalate to senior analyst.',
-    'Data Exfiltration': 'Disable suspicious session, review outbound traffic, check accessed data, escalate immediately.',
-    'Privilege Abuse': 'Audit privilege changes, remove excessive permissions, review account history.',
-    'Unusual Login Time': 'Confirm user activity, review device/IP, enforce MFA if unusual.',
-    'Unknown IP Login': 'Validate user identity, inspect location/IP reputation, reset password if needed.',
-    'Normal Activity': 'No action required.'
-}
-
-REQUIRED = ['timestamp','username','source_ip','destination_ip','asset','action','status','port','protocol','bytes_sent','event_message']
-
-def normalize(df):
-    aliases = {'time':'timestamp','date':'timestamp','datetime':'timestamp','user':'username','src_ip':'source_ip','source':'source_ip','dst_ip':'destination_ip','dest_ip':'destination_ip','host':'asset','device':'asset','message':'event_message','msg':'event_message','result':'status','event_type':'action'}
-    df = df.copy()
-    df.columns = [aliases.get(str(c).strip().lower(), str(c).strip().lower()) for c in df.columns]
-    for c in REQUIRED:
-        if c not in df.columns:
-            df[c] = 0 if c in ['port','bytes_sent'] else ''
-    df['timestamp'] = pd.to_datetime(df['timestamp'], errors='coerce')
-    df['port'] = pd.to_numeric(df['port'], errors='coerce').fillna(0).astype(int)
-    df['bytes_sent'] = pd.to_numeric(df['bytes_sent'], errors='coerce').fillna(0).astype(int)
-    for c in ['username','source_ip','destination_ip','asset','action','status','protocol','event_message']:
-        df[c] = df[c].astype(str).str.strip()
-    return df.sort_values('timestamp').reset_index(drop=True)
-
-def demo_logs(rows=120):
-    base = datetime(2026,1,15,9,0,0)
-    users = ['alice','bob','charlie','david','admin']
-    assets = ['web-app','server-01','server-02','database','mail-server']
-    rec=[]
-    def add(t,u,src,dst,a,act,stat,port,proto,bytes_,msg):
-        rec.append({'timestamp':t,'username':u,'source_ip':src,'destination_ip':dst,'asset':a,'action':act,'status':stat,'port':port,'protocol':proto,'bytes_sent':bytes_,'event_message':msg})
-    for i in range(rows):
-        add(base+timedelta(minutes=i*2), users[i%5], f'192.168.1.{10+i%45}', f'10.0.0.{5+i%8}', assets[i%5], 'login', 'success', 443, 'HTTPS', int(np.random.randint(200,3500)), 'Normal login activity')
-    for i in range(28):
-        add(base+timedelta(minutes=12,seconds=i*12),'admin','192.168.1.250','10.0.0.10','server-01','login','failure',22,'SSH',0,'Failed login attempt against admin')
-    add(base+timedelta(minutes=22),'admin','192.168.1.250','10.0.0.10','server-01','login','success',22,'SSH',650,'Successful admin login after multiple failures')
-    for u in users:
-        for j in range(3):
-            add(base+timedelta(minutes=45,seconds=j*20),u,'192.168.1.200','10.0.0.11','mail-server','login','failure',443,'HTTPS',0,'Failed login across multiple users')
-    for i,p in enumerate([21,22,23,25,53,80,110,139,143,443,445,3389,8080,8443]):
-        add(base+timedelta(minutes=70,seconds=i*8),'-','192.168.1.180','10.0.0.12','server-02','connection_attempt','blocked',p,'TCP',0,f'Connection attempt on port {p}')
-    for i in range(8):
-        add(base+timedelta(minutes=95,seconds=i*20),'system','192.168.1.190','10.0.0.13','server-01','process_blocked','blocked',0,'LOCAL',0,'Suspicious powershell encoded command blocked')
-    for i in range(7):
-        add(base+timedelta(minutes=120,seconds=i*30),'eve','192.168.1.170','10.0.0.14','database','data_transfer','success',443,'HTTPS',int(np.random.randint(3000000,12000000)),'Large outbound data transfer from database')
-    return pd.DataFrame(rec)
-
-def analyze(df):
-    df = normalize(df)
-    df['threat_type'] = 'Normal Activity'
-    df['detection_method'] = 'Baseline'
-    df['reason'] = 'No suspicious pattern detected.'
-    fail = df[(df.action.str.lower()=='login') & (df.status.str.lower()=='failure')]
-    brute = set(map(tuple, fail.groupby(['source_ip','username']).size().reset_index(name='n').query('n>=8')[['source_ip','username']].values))
-    spray_ips = set(fail.groupby('source_ip').agg(n=('username','count'), users=('username','nunique')).reset_index().query('n>=8 and users>=3')['source_ip'])
-    port_ips = set(df[df.action.str.contains('connection',case=False,na=False)].groupby('source_ip')['port'].nunique().loc[lambda s:s>=8].index)
-    risky_keywords = ['powershell','encoded','mimikatz','suspicious process','malware','ransom','credential dump']
-    for i,r in df.iterrows():
-        msg=str(r.event_message).lower(); act=str(r.action).lower(); stat=str(r.status).lower(); user=str(r.username).lower(); src=str(r.source_ip)
-        if (src,r.username) in brute and act=='login' and stat=='failure':
-            df.loc[i,['threat_type','detection_method','reason']]=['Brute Force','Rule-based','Repeated failed logins against the same user.']
-        elif src in spray_ips and act=='login' and stat=='failure':
-            df.loc[i,['threat_type','detection_method','reason']]=['Password Spraying','Rule-based','Same IP attempted authentication against multiple users.']
-        elif act=='login' and stat=='success' and user=='admin' and src in set(fail.source_ip):
-            df.loc[i,['threat_type','detection_method','reason']]=['Suspicious Admin Activity','Correlation','Admin login succeeded after repeated failures.']
-        elif src in port_ips and r.port>0:
-            df.loc[i,['threat_type','detection_method','reason']]=['Port Scan','Rule-based','Source IP contacted many ports in a short time.']
-        elif any(k in msg for k in risky_keywords) or 'process' in act:
-            df.loc[i,['threat_type','detection_method','reason']]=['Malware-like Activity','Keyword/TF-IDF style','Suspicious command/process keyword detected.']
-        elif act=='data_transfer' or r.bytes_sent>=3000000:
-            df.loc[i,['threat_type','detection_method','reason']]=['Data Exfiltration','Anomaly scoring','Large outbound transfer volume detected.']
-        elif act=='privilege_change' or 'privilege' in msg:
-            df.loc[i,['threat_type','detection_method','reason']]=['Privilege Abuse','Rule-based','Privilege modification or abuse pattern detected.']
-        elif act=='login' and pd.notna(r.timestamp) and (r.timestamp.hour<6 or r.timestamp.hour>22):
-            df.loc[i,['threat_type','detection_method','reason']]=['Unusual Login Time','UEBA','Login outside normal working hours.']
-    base={'Normal Activity':10,'Unusual Login Time':55,'Port Scan':65,'Password Spraying':72,'Brute Force':82,'Malware-like Activity':88,'Data Exfiltration':94,'Suspicious Admin Activity':96,'Privilege Abuse':85,'Unknown IP Login':60}
-    df['risk_score']=df.apply(lambda r:min(100, base.get(r.threat_type,20)+(8 if str(r.username).lower()=='admin' else 0)+(5 if r.source_ip in ['192.168.1.250','192.168.1.190','192.168.1.170'] else 0)),axis=1)
-    df['risk_level']=pd.cut(df.risk_score, bins=[-1,25,50,75,100], labels=['Low','Medium','High','Critical']).astype(str)
-    df['confidence']=(df.risk_score/100).round(2)
-    df['incident_id']=['CSX-'+str(n).zfill(4) for n in (df.groupby(['source_ip','threat_type']).ngroup()+1)]
+@st.cache_data(show_spinner=False)
+def load_sample_log(name: str) -> pd.DataFrame:
+    path = os.path.join('sample_logs', name)
+    df = load_log(path)
+    df = preprocess(df)
     return df
 
-def executive_summary(df):
-    bad=df[df.threat_type!='Normal Activity']
-    if df.empty: return 'No log data has been analysed yet.'
-    top=bad.threat_type.value_counts().idxmax() if not bad.empty else 'None'
-    return f'Cyber Sentinel X analysed {len(df)} events and identified {len(bad)} suspicious events across {bad.incident_id.nunique() if not bad.empty else 0} incidents. The top detected threat category is {top}. All findings are simulated/educational and require analyst validation.'
 
-if 'df' not in st.session_state:
-    st.session_state.df = pd.DataFrame()
+def process_events(df: pd.DataFrame) -> pd.DataFrame:
+    """Run detection, risk scoring, UEBA and incident correlation."""
+    df = detect_threats(df)
+    df = compute_risk(df)
+    df = analyse_ueba(df)
+    df = correlate_incidents(df)
+    return df
 
-st.sidebar.title('🛡️ Cyber Sentinel X')
-page=st.sidebar.radio('Navigation',['Overview Dashboard','Log Upload & Analysis','Threat Detection','Incidents','Timeline','IOC Intelligence','AI Analyst','Reports','About Project'])
 
-st.title('Cyber Sentinel X')
-st.caption('AI-Powered Cyber Threat Detection & Incident Analysis — defensive mini-SOC/SIEM simulation')
+def main():
+    st.set_page_config(page_title="Cyber Sentinel X", layout="wide")
+    st.sidebar.title("Cyber Sentinel X")
+    pages = [
+        "Home",
+        "Upload Logs",
+        "Threat Detection",
+        "Incident Investigation",
+        "AI Security Agent",
+        "Analytics",
+        "Report Generator",
+        "About",
+    ]
+    page = st.sidebar.radio("Navigation", pages)
 
-if page=='Overview Dashboard':
-    df=st.session_state.df
-    if df.empty:
-        st.info('No logs analysed yet. Go to Log Upload & Analysis and generate demo logs.')
-    else:
-        bad=df[df.threat_type!='Normal Activity']
-        c1,c2,c3,c4=st.columns(4)
-        c1.metric('Total Logs',len(df)); c2.metric('Threats Detected',len(bad)); c3.metric('Critical Events',int((df.risk_level=='Critical').sum())); c4.metric('Average Risk',round(df.risk_score.mean(),1))
-        c5,c6,c7,c8=st.columns(4)
-        c5.metric('Unique IPs',df.source_ip.nunique()); c6.metric('Suspicious Users',bad.username.nunique() if not bad.empty else 0); c7.metric('Confidence',f'{round(df.confidence.mean()*100,1)}%'); c8.metric('Incidents',bad.incident_id.nunique() if not bad.empty else 0)
-        st.plotly_chart(px.bar(df.threat_type.value_counts().reset_index(),x='threat_type',y='count',title='Threat Category Distribution'),use_container_width=True)
-        st.plotly_chart(px.histogram(df,x='risk_score',color='risk_level',title='Risk Distribution'),use_container_width=True)
-        st.plotly_chart(px.scatter(df,x='timestamp',y='risk_score',color='threat_type',hover_data=['source_ip','username','incident_id'],title='Security Timeline'),use_container_width=True)
+    # Initialize session state
+    if 'events' not in st.session_state:
+        st.session_state['events'] = pd.DataFrame()
+    if 'processed' not in st.session_state:
+        st.session_state['processed'] = pd.DataFrame()
 
-elif page=='Log Upload & Analysis':
-    st.subheader('Upload CSV or generate demo security logs')
-    up=st.file_uploader('Upload CSV log file',type=['csv'])
-    if st.button('Generate Demo Logs'):
-        st.session_state.df=analyze(demo_logs())
-        st.success('Demo logs generated and analysed successfully.')
-    if up:
-        try:
-            st.session_state.df=analyze(pd.read_csv(up))
-            st.success('Uploaded logs analysed successfully.')
-        except Exception as e:
-            st.error(f'Unable to analyse uploaded file: {e}')
-    if not st.session_state.df.empty:
-        st.dataframe(st.session_state.df.head(50),use_container_width=True)
-
-elif page=='Threat Detection':
-    df=st.session_state.df
-    if df.empty: st.warning('Load logs first.')
-    else:
-        levels=st.multiselect('Risk level filter',sorted(df.risk_level.unique()),default=sorted(df.risk_level.unique()))
-        view=df[df.risk_level.isin(levels)]
-        st.dataframe(view[['timestamp','username','source_ip','asset','action','status','threat_type','detection_method','risk_score','risk_level','confidence','reason']],use_container_width=True)
-
-elif page=='Incidents':
-    df=st.session_state.df
-    if df.empty: st.warning('Load logs first.')
-    else:
-        bad=df[df.threat_type!='Normal Activity']
-        if bad.empty: st.success('No suspicious incidents found.')
+    if page == "Home":
+        st.title("SOC Dashboard")
+        if st.session_state['processed'].empty:
+            st.info("Upload or generate logs from the sidebar to begin analysis.")
         else:
-            incidents=bad.groupby('incident_id').agg(title=('threat_type','first'),severity=('risk_level','max'),risk_score=('risk_score','max'),first_seen=('timestamp','min'),last_seen=('timestamp','max'),related_ips=('source_ip',lambda x:', '.join(sorted(set(x)))),related_users=('username',lambda x:', '.join(sorted(set(x))))).reset_index()
-            st.dataframe(incidents,use_container_width=True)
-            inc=st.selectbox('Incident detail',incidents.incident_id)
-            sub=bad[bad.incident_id==inc]
-            t=sub.threat_type.iloc[0]
-            st.markdown(f'### {inc} — {t}')
-            st.write('MITRE:',MITRE.get(t,'N/A'))
-            st.write('Recommended response:',PLAYBOOKS.get(t,'Review manually.'))
-            st.write('Explanation:',sub.reason.iloc[0])
-            st.dataframe(sub[['timestamp','username','source_ip','asset','event_message','risk_score','risk_level']],use_container_width=True)
+            df = st.session_state['processed']
+            # Summary metrics
+            total_events = len(df)
+            total_incidents = df['incident_id'].nunique()
+            critical_incidents = (df['risk_level'] == 'Critical').sum()
+            high_incidents = (df['risk_level'] == 'High').sum()
+            unique_ips = df['source_ip'].nunique()
+            unique_users = df['username'].nunique()
+            avg_risk = round(df['risk_score'].mean(), 2) if not df.empty else 0
+            # Display metrics in a single row of columns
+            cols = st.columns(6)
+            cols[0].metric("Events", total_events)
+            cols[1].metric("Incidents", total_incidents)
+            cols[2].metric("Unique IPs", unique_ips)
+            cols[3].metric("Unique Users", unique_users)
+            cols[4].metric("Critical Incidents", critical_incidents)
+            cols[5].metric("Avg Risk Score", avg_risk)
+            # Charts
+            st.plotly_chart(threat_distribution(df), use_container_width=True)
+            st.plotly_chart(risk_distribution(df), use_container_width=True)
+            st.plotly_chart(timeline_chart(df), use_container_width=True)
+            # Top IPs and users presented as tables
+            st.subheader("Top Source IPs")
+            st.table(df['source_ip'].value_counts().head())
+            st.subheader("Top Users")
+            st.table(df['username'].value_counts().head())
 
-elif page=='Timeline':
-    df=st.session_state.df
-    if df.empty: st.warning('Load logs first.')
-    else:
-        st.write(executive_summary(df))
-        st.dataframe(df.sort_values('timestamp')[['timestamp','action','username','source_ip','threat_type','risk_level','reason']],use_container_width=True)
+    elif page == "Upload Logs":
+        st.title("Upload or Generate Logs")
+        uploaded_file = st.file_uploader("Upload CSV Log File", type=['csv'])
+        sample_files = os.listdir('sample_logs')
+        st.markdown("**Or load a sample demo log:**")
+        sample_choice = st.selectbox("Select sample log", [''] + sample_files)
+        if st.button("Load Sample Log") and sample_choice:
+            df = load_sample_log(sample_choice)
+            st.session_state['events'] = df
+            st.session_state['processed'] = process_events(df)
+            st.success(f"Loaded {len(df)} events from sample log {sample_choice}.")
+        if uploaded_file is not None:
+            # Read uploaded file into DataFrame
+            df = pd.read_csv(uploaded_file)
+            df = preprocess(df)
+            st.session_state['events'] = df
+            st.session_state['processed'] = process_events(df)
+            st.success(f"Uploaded {len(df)} events from file {uploaded_file.name}.")
 
-elif page=='IOC Intelligence':
-    df=st.session_state.df
-    if df.empty: st.warning('Load logs first.')
-    else:
-        rows=[]
-        for col,typ in [('source_ip','IP Address'),('username','User'),('asset','Asset'),('port','Port')]:
-            for v,n in df[col].astype(str).value_counts().head(25).items():
-                if v and v!='0':
-                    sub=df[df[col].astype(str)==v]
-                    rows.append({'ioc_type':typ,'value':v,'frequency':int(n),'max_risk':int(sub.risk_score.max()),'first_seen':sub.timestamp.min(),'last_seen':sub.timestamp.max(),'category':'Simulated Threat Intelligence for Educational Demo'})
-        st.dataframe(pd.DataFrame(rows),use_container_width=True)
-
-elif page=='AI Analyst':
-    df=st.session_state.df
-    q=st.text_input('Ask the AI-style analyst',placeholder='What is the most critical incident?')
-    if df.empty: st.info('Load logs first.')
-    elif q:
-        low=q.lower(); bad=df[df.threat_type!='Normal Activity']
-        if 'critical' in low or 'highest' in low:
-            r=df.loc[df.risk_score.idxmax()]; st.write(f'Most critical finding is {r.incident_id}: {r.threat_type} from {r.source_ip}, risk {r.risk_score}.')
-        elif 'summary' in low:
-            st.write(executive_summary(df))
-        elif 'user' in low:
-            st.write(f'Most targeted user is {bad.username.value_counts().idxmax() if not bad.empty else "none"}.')
+    elif page == "Threat Detection":
+        st.title("Threat Detection & Risk Analysis")
+        if st.session_state['processed'].empty:
+            st.warning("No processed log data available. Please upload or load a log first.")
         else:
-            st.write(executive_summary(df))
+            df = st.session_state['processed']
+            # Filter controls
+            st.subheader("Filter Events")
+            levels = ['All'] + sorted(df['risk_level'].unique().tolist())
+            level_sel = st.selectbox("Risk Level", levels, index=0)
+            types = ['All'] + sorted(df['threat_type'].unique().tolist())
+            type_sel = st.selectbox("Threat Type", types, index=0)
+            df_filtered = df
+            if level_sel != 'All':
+                df_filtered = df_filtered[df_filtered['risk_level'] == level_sel]
+            if type_sel != 'All':
+                df_filtered = df_filtered[df_filtered['threat_type'] == type_sel]
+            # Display filtered table
+            st.dataframe(
+                df_filtered[
+                    [
+                        'timestamp',
+                        'username',
+                        'source_ip',
+                        'asset',
+                        'action',
+                        'status',
+                        'threat_type',
+                        'risk_level',
+                        'risk_score',
+                        'incident_id',
+                    ]
+                ],
+                use_container_width=True,
+            )
+            st.subheader("IOC Summary")
+            st.dataframe(extract_iocs(df_filtered), use_container_width=True)
 
-elif page=='Reports':
-    df=st.session_state.df
-    if df.empty: st.warning('Load logs first.')
-    else:
-        st.subheader('Executive Summary')
-        st.write(executive_summary(df))
-        st.download_button('Download detected events CSV',df.to_csv(index=False).encode('utf-8'),'cyber_sentinel_x_report.csv','text/csv')
-        st.download_button('Download JSON summary',df.groupby('threat_type').size().to_json().encode('utf-8'),'cyber_sentinel_summary.json','application/json')
+    elif page == "Incident Investigation":
+        st.title("Incident Investigation & Case Management")
+        if st.session_state['processed'].empty:
+            st.warning("Please process some log data first.")
+        else:
+            df = st.session_state['processed']
+            # List incidents
+            incidents = df[['incident_id','threat_type','risk_level','risk_score']].drop_duplicates()
+            selected = st.selectbox("Select an incident", incidents['incident_id'])
+            inc_df = df[df['incident_id']==selected]
+            if not inc_df.empty:
+                # Initialize case record if needed
+                initialize_case(selected)
+                case = get_case(selected)
+                st.subheader(f"Incident {selected}")
+                st.write(f"Threat Type: {inc_df['threat_type'].iloc[0]}")
+                st.write(f"Risk Score: {inc_df['risk_score'].iloc[0]} ({inc_df['risk_level'].iloc[0]})")
+                st.write(f"Source IP: {inc_df['source_ip'].iloc[0]}")
+                st.write(f"Target User: {inc_df['username'].iloc[0]}")
+                st.write(f"MITRE Mapping: {map_threat(inc_df['threat_type'].iloc[0])}")
+                # Timeline
+                st.subheader("Timeline")
+                st.table(build_timeline(inc_df, selected)[['timestamp','action','status','event_message','threat_type']])
+                # Case management form
+                st.subheader("Case Details")
+                status = st.selectbox("Status", STATUSES, index=STATUSES.index(case['status']))
+                priority = st.selectbox("Priority", ['Low','Medium','High','Critical'], index=['Low','Medium','High','Critical'].index(case.get('priority','Medium')))
+                analyst = st.text_input("Assigned Analyst", value=case.get('analyst',''))
+                notes = st.text_area("Analyst Notes", value=case.get('notes',''))
+                if st.button("Update Case"):
+                    update_case(selected, status=status, priority=priority, analyst=analyst, notes=notes)
+                    st.success("Case updated.")
+                # Explanation
+                st.subheader("AI Explanation")
+                st.write(explain_incident(inc_df))
 
-else:
-    st.markdown('''
-### What is Cyber Sentinel X?
-Cyber Sentinel X is a defensive, educational mini-SOC/SIEM dashboard for analysing uploaded or generated security logs. It detects suspicious patterns, scores risk, correlates events into incidents, extracts IOCs, maps findings to MITRE ATT&CK-style concepts, and generates analyst-friendly explanations.
+    elif page == "AI Security Agent":
+        st.title("AI Security Agent")
+        if st.session_state['processed'].empty:
+            st.info("Load and process logs to interact with the AI agent.")
+        else:
+            df = st.session_state['processed']
+            question = st.text_input("Ask a question about the incidents")
+            if question:
+                answer = answer_question(question, df)
+                st.write(answer)
 
-### Safety Statement
-This project does not scan, attack, exploit, crack passwords, phish, persist, evade, or interact with real targets. It only analyses uploaded or simulated log data.
+    elif page == "Analytics":
+        st.title("Analytics & Visualisations")
+        if st.session_state['processed'].empty:
+            st.warning("Please load and process logs to view analytics.")
+        else:
+            df = st.session_state['processed']
+            st.subheader("Risk Heatmap")
+            # Available dimensions for heatmap axes
+            dims = ['username', 'source_ip', 'asset', 'hour', 'threat_type', 'risk_level']
+            col1, col2 = st.columns(2)
+            with col1:
+                index_dim = st.selectbox("Row dimension", dims, index=dims.index('username'))
+            with col2:
+                column_dim = st.selectbox("Column dimension", dims, index=dims.index('risk_level'))
+            try:
+                fig_heat = risk_heatmap(df, index=index_dim, column=column_dim)
+                st.plotly_chart(fig_heat, use_container_width=True)
+            except Exception as e:
+                st.error(f"Unable to compute heatmap: {e}")
+            st.subheader("Relationship Graph")
+            fig_graph = relationship_graph(df)
+            st.plotly_chart(fig_graph, use_container_width=True)
 
-### Tech Stack
-Python, Streamlit, Pandas, NumPy, Plotly.
-''')
+    elif page == "Report Generator":
+        st.title("Report Generator")
+        if st.session_state['processed'].empty:
+            st.warning("No data available for reporting.")
+        else:
+            df = st.session_state['processed']
+            st.subheader("Summary Report")
+            st.dataframe(summary_report(df), use_container_width=True)
+            # Download buttons
+            csv = df.to_csv(index=False).encode('utf-8')
+            st.download_button("Download All Events (CSV)", csv, file_name="events.csv", mime='text/csv')
+            # Incident-specific report download
+            incidents = df['incident_id'].unique()
+            inc_select = st.selectbox("Select incident for detailed report", incidents)
+            rep_df = incident_report(df, inc_select)
+            if not rep_df.empty:
+                csv_inc = rep_df.to_csv(index=False).encode('utf-8')
+                st.download_button(f"Download Report for {inc_select}", csv_inc, file_name=f"report_{inc_select}.csv", mime='text/csv')
+    elif page == "About":
+        st.title("About Cyber Sentinel X")
+        st.markdown("""
+        **Cyber Sentinel X** is a demonstration of an AI-powered SOC analyst
+        platform built for educational purposes. It showcases how security logs
+        can be ingested, analysed, correlated and summarised using modern
+        analytics techniques. The project integrates principles of anomaly
+        detection, user and entity behaviour analytics (UEBA), MITRE ATT&CK
+        mapping and threat intelligence lookup, with a conversational agent
+        interface to explain incidents and suggest responses.
+
+        **Key modules:**
+        - **Log Parser & Preprocessor:** Normalises and cleans raw log data.
+        - **Threat Detector:** Applies heuristic rules to classify events into
+          high-level threat categories.
+        - **Risk Engine:** Assigns numerical risk scores and levels.
+        - **UEBA Engine:** Flags unusual behaviour based on deviations from
+          typical patterns.
+        - **Incident Correlator:** Groups related events into incidents.
+        - **AI Agent:** Generates human-readable explanations and answers
+          questions about the incidents.
+        - **Case Manager:** Enables analysts to update status, priority and
+          notes for each incident.
+        - **Report Generator:** Produces CSV reports for detailed analysis and
+          summary statistics.
+        """)
+
+if __name__ == '__main__':
+    main()
