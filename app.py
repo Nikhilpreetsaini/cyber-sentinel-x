@@ -19,10 +19,34 @@ real-world intrusion detection.
 
 # --------- Helper functions ---------
 
-# Log loader
+# L
+
+# Deduplicate column names and ensure no blank names
+def dedup_columns(df: pd.DataFrame) -> pd.DataFrame:
+    """Ensure no blank or duplicate column names by renaming them."""
+    df = df.copy()
+    # Replace blank column names with generated names
+    new_cols = []
+    seen = {}
+    for i, col in enumerate(df.columns):
+        name = str(col).strip()
+        if name == '':
+            name = f'Unnamed_{i}'
+        # Handle duplicates
+        if name in seen:
+            seen[name] += 1
+            name = f"{name}_{seen[name]}"
+        else:
+            seen[name] = 0
+        new_cols.append(name)
+    df.columns = new_cols
+    return df
+og loader
 def load_log(path: str) -> pd.DataFrame:
     """Load a CSV log file into a DataFrame."""
-    return pd.read_csv(path)
+        df = pd.read_csv(path, mangle_dupe_cols=True)
+    df = dedup_columns(df)
+    return df
 
 # Preprocess logs
 def preprocess(df: pd.DataFrame) -> pd.DataFrame:
@@ -270,7 +294,7 @@ def main():
             st.session_state['processed'] = process_events(df)
             st.success(f"Loaded {len(df)} events from sample log {sample_choice}.")
         if uploaded_file is not None:
-            df = pd.read_csv(uploaded_file)
+                    df = load_log(uploaded_file)
             df = preprocess(df)
             st.session_state['events'] = df
             st.session_state['processed'] = process_events(df)
