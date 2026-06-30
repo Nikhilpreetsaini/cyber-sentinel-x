@@ -1,58 +1,60 @@
 # Cyber Sentinel X
 
-**Cyber Sentinel X** is an AI‑powered Security Operations Center (SOC) analyst and threat intelligence platform built with Streamlit. It demonstrates how log data can be ingested, analysed, correlated and summarised to detect suspicious behaviour, assign risk scores, generate incident reports and provide agentic explanations.
+**Cyber Sentinel X** is an AI-powered Security Operations Center (SOC) analyst and threat intelligence platform built with Streamlit. It demonstrates how log data can be ingested, analysed, correlated and summarised to detect suspicious behaviour, assign risk scores, generate incident reports and provide agentic explanations.
 
 ## Features
 
-- **Multi‑Source Log Ingestion:** Upload your own CSV logs or load built‑in demo datasets representing normal activity, brute force attacks, password spraying, port scanning, malware‑like processes and data exfiltration.
-- **Threat Detection & Risk Scoring:** Identify brute force attacks, password spray attempts, port scans, malware‑like activity, data exfiltration and more using heuristic rules. Assign a risk score (0–100) and risk level (Low/Medium/High/Critical) to each event.
-- **User & Entity Behaviour Analytics (UEBA):** Flag unusual behaviour such as logins outside typical hours, multiple IPs per user or multiple users from a single IP.
-- **Incident Correlation:** Group related events into incidents with unique IDs based on source IP, threat type and temporal proximity.
-- **SOC Dashboard:** Visualise threat distribution, risk score distribution and event timelines. View top source IPs and users.
-- **Incident Investigation:** Examine individual incidents, review timelines, update case status (Open/Investigating/Resolved/False Positive/Needs Review), assign priorities and add analyst notes.
-- **Analytics & Visualisations:** Explore a risk heatmap across different dimensions (user, IP, asset, hour, threat type or risk level) to see where risk concentrates. Examine a relationship graph linking source IPs to users, assets and threat types to understand how an incident flows from the network edge to the victim.
-- **AI Security Agent:** Ask natural language questions about the events and receive explanations, summaries and recommendations. The agent can answer questions such as *"Why is this IP suspicious?", "What is the most critical incident?", "Which user is most targeted?"* and provide executive summaries. It runs locally and does not call external services.
-- **MITRE ATT&CK Mapping & Threat Intelligence:** Map detected threats to simplified MITRE tactics and techniques. Look up IP addresses in a local threat intelligence database for reputation and suggested actions.
-- **Report Generation:** Download CSV files containing all events or incident‑specific reports. Generate summary statistics by threat type and risk level.
-- **Streamlit Deployment Ready:** The repository includes a `.streamlit/config.toml` to configure the app for deployment on [Streamlit Cloud](https://streamlit.io/cloud).
+- **Multi-Source Log Ingestion:** Upload your own CSV logs or generate built-in demo logs representing normal activity, brute force attacks, password spraying, port scanning, malware-like processes and data exfiltration.
+- **Threat Detection & Risk Scoring:** Identify brute force attacks, password spray attempts, port scans, malware-like activity, data exfiltration and suspicious logins using defensive heuristic rules.
+- **User & Entity Behaviour Analytics (UEBA):** Flag unusual behaviour such as odd-hour risky activity or users appearing from many source IPs.
+- **Incident Correlation:** Group related events into incident IDs based on source IP and threat type.
+- **SOC Dashboard:** Visualise threat distribution, IOC summaries, risk scores and event timelines.
+- **Incident Investigation:** Examine incidents, review event data, update case status, assign priorities and add analyst notes.
+- **AI Security Agent:** Ask natural-language questions such as "Which incident is most critical?", "Which IPs are suspicious?" and "Show MITRE mapping". The assistant uses local rules only and does not call external APIs.
+- **MITRE ATT&CK Mapping & Threat Intelligence:** Map detected threats to simplified MITRE tactics and techniques. Look up IP addresses in a local demo threat-intelligence dictionary.
+- **Report Generation:** Download CSV files containing all events or incident-specific reports.
+- **Streamlit Cloud Ready:** Includes `requirements.txt`, `.streamlit/config.toml`, `app.py`, and `streamlit_app.py` for simple deployment.
 
-## Installation
+## Streamlit Cloud Deployment
 
-Clone the repository and install the dependencies:
+Use these exact settings in Streamlit Community Cloud:
+
+- Repository: `Nikhilpreetsaini/cyber-sentinel-x`
+- Branch: `main`
+- Main file path: `streamlit_app.py`
+
+Alternative main file path if needed:
+
+- `app.py`
+
+No secrets are required. No external paid APIs are required.
+
+## Local Installation
 
 ```bash
-git clone https://github.com/your-username/cyber-sentinel-x.git
+git clone https://github.com/Nikhilpreetsaini/cyber-sentinel-x.git
 cd cyber-sentinel-x
 pip install -r requirements.txt
+streamlit run streamlit_app.py
 ```
 
-## Running the App
-
-To launch Cyber Sentinel X locally, run:
-
-```bash
-streamlit run app.py
-```
-
-Open your browser at `http://localhost:8501` to explore the dashboard and features.
+Then open `http://localhost:8501`.
 
 ## Directory Structure
 
-```
+```text
 cyber-sentinel-x/
-├── app.py              # Main Streamlit application
-├── requirements.txt    # Python dependencies
-├── sample_logs/        # Demo log datasets
-├── data/               # MITRE mapping, threat intel and response playbooks
-├── src/                # Core modules (parsing, detection, risk, UEBA, etc.)
-├── docs/               # Project documentation (synopsis, system design, etc.)
-├── assets/             # Screenshots and diagrams
-└── .streamlit/         # Streamlit configuration
+├── app.py                 # Main Streamlit application logic
+├── streamlit_app.py       # Streamlit Cloud-compatible entrypoint
+├── requirements.txt       # Python dependencies
+├── render.yaml            # Optional Render deployment blueprint
+├── .streamlit/            # Streamlit configuration
+└── README.md              # Project documentation
 ```
 
 ## Safety Notice
 
-This project is for educational purposes only. It is a defensive cybersecurity tool and **does not** perform real hacking, scanning or exploitation of networks. All threat detection logic operates on pre‑ingested log files, and the threat intelligence database is a static, safe dataset. Do not use this tool to monitor live production systems without appropriate authorisation.
+This project is for educational and defensive cybersecurity purposes only. It does not perform real hacking, scanning, exploitation or unauthorised monitoring. All detections run on uploaded or generated log data.
 
 ## License
 
